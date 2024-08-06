@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react'
 import socket from '@/socket'
 
+import './page.css'
+import { lato } from './font'
+
 export default function Page() {
   const [isConnected, setIsConnected] = useState(false)
   const [transport, setTransport] = useState('N/A')
@@ -36,7 +39,7 @@ export default function Page() {
   }, [])
 
   return (
-    <div>
+    <div id="app" className={lato.variable}>
       <p>Status: {isConnected ? 'connected' : 'disconnected'}</p>
       <p>Transport: {transport}</p>
     </div>
