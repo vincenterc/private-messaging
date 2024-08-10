@@ -17,14 +17,23 @@ export interface ClientToServerEvents {
 }
 
 export interface ServerToClientEvents {
+  session: ({
+    sessionID,
+    userID,
+  }: {
+    sessionID: string
+    userID: string
+  }) => void
   users: (users: UserType[]) => void
   'user connected': (user: UserType) => void
   'user disconnected': (id: string) => void
   'private message': ({
     content,
     from,
+    to,
   }: {
     content: string
     from: string
+    to: string
   }) => void
 }

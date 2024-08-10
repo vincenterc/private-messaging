@@ -13,7 +13,6 @@ export default function Chat() {
   useEffect(() => {
     const initUserProps = (user: UserType): UserType => ({
       ...user,
-      connected: true,
       messages: [],
       hasNewMessages: false,
     })
@@ -48,11 +47,21 @@ export default function Chat() {
       )
     }
 
-    function onUsers(users: UserType[]) {
-      const newUsers = users.map((user) => ({
-        ...initUserProps(user),
-        self: user.userID === socket.id,
-      }))
+    function onUsers(us: UserType[]) {
+      const newUsers = us.map((u) => {
+        const existingUser = users.find((user) => user.userID === u.userID)
+        if (existingUser) {
+          return {
+            ...existingUser,
+            connected: u.connected,
+          }
+        }
+        return {
+          ...initUserProps(u),
+          // TODO socket.userID
+          self: u.userID === (socket as any).userID,
+        }
+      })
       // put the current user first and sort others by username
       setUsers(
         newUsers.sort((a, b) => {
@@ -64,41 +73,61 @@ export default function Chat() {
       )
     }
 
-    function onUserConnected(user: UserType) {
-      setUsers((users) => [...users, initUserProps(user)])
+    function onUserConnected(u: UserType) {
+      const existingUserIndex = users.findIndex(
+        (user) => user.userID === u.userID,
+      )
+      if (existingUserIndex !== -1) {
+        setUsers([
+          ...users.slice(0, existingUserIndex),
+          { ...users[existingUserIndex], connected: true },
+          ...users.slice(existingUserIndex + 1),
+        ])
+      } else {
+        setUsers([...users, initUserProps(u)])
+      }
     }
 
     function onUserDisconnected(id: string) {
       const index = users.findIndex((user) => user.userID === id)
-      setUsers([
-        ...users.slice(0, index),
-        {
-          ...users[index],
-          connected: false,
-        },
-        ...users.slice(index + 1),
-      ])
+      if (index !== -1) {
+        setUsers([
+          ...users.slice(0, index),
+          {
+            ...users[index],
+            connected: false,
+          },
+          ...users.slice(index + 1),
+        ])
+      }
     }
 
     function onPrivateMessage({
       content,
       from,
+      to,
     }: {
       content: string
       from: string
+      to: string
     }) {
-      const index = users.findIndex((user) => user.userID === from)
-      const user = users[index]
-
-      setUsers([
-        ...users.slice(0, index),
-        {
-          ...user,
-          messages: [...user.messages, { content, fromSelf: false }],
-          hasNewMessages: user.userID !== selectedUserId,
-        },
-        ...users.slice(index + 1),
-      ])
+      // TODO socket.userID
+      const fromSelf = (socket as any).userID === from
+      const userIndex = users.findIndex(
+        (user) => user.userID === (fromSelf ? to : from),
+      )
+      if (userIndex !== -1) {
+        const user = users[userIndex]
+        setUsers([
+          ...users.slice(0, userIndex),
+          {
+            ...user,
+            messages: [...user.messages, { content, fromSelf }],
+            hasNewMessages: user.userID !== selectedUserId,
+          },
+          ...users.slice(userIndex + 1),
+        ])
+      }
     }
 
     socket.on('connect', onConnect)
@@ -120,6 +149,7 @@ export default function Chat() {
 
   function onSelectUser(user: UserType) {
     return function () {
+      // TODO
       user.hasNewMessages = false
       setSelectedUserId(user.userID)
     }
