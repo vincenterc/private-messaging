@@ -5,43 +5,39 @@ import socket from '@/socket'
 
 import './page.css'
 import { lato } from './font'
+import SelectUsername from './select-username'
+import Chat from './chat'
 
 export default function Page() {
-  const [isConnected, setIsConnected] = useState(false)
-  const [transport, setTransport] = useState('N/A')
+  const [usernameAlreadySelected, setUsernameAlreadySelected] = useState(false)
 
   useEffect(() => {
-    function onConnect() {
-      setIsConnected(true)
-      setTransport(socket.io.engine.transport.name)
-
-      socket.io.engine.on('upgrade', (transport) => {
-        setTransport(transport.name)
-      })
+    function onConnectError(err: Error) {
+      if (err.message === 'invalid username') {
+        setUsernameAlreadySelected(false)
+      }
     }
 
-    function onDisconnect() {
-      setIsConnected(false)
-      setTransport('N/a')
-    }
-
-    if (socket.connected) {
-      onConnect()
-    }
-
-    socket.on('connect', onConnect)
-    socket.on('disconnect', onDisconnect)
+    socket.on('connect_error', onConnectError)
 
     return () => {
-      socket.off('connect', onConnect)
-      socket.off('disconnect', onDisconnect)
+      socket.off('connect_error', onConnectError)
     }
   }, [])
 
+  function onSelectUsername(username: string) {
+    setUsernameAlreadySelected(true)
+    socket.auth = { username }
+    socket.connect()
+  }
+
   return (
     <div id="app" className={lato.variable}>
-      <p>Status: {isConnected ? 'connected' : 'disconnected'}</p>
-      <p>Transport: {transport}</p>
+      {!usernameAlreadySelected ? (
+        <SelectUsername onSelectUsername={onSelectUsername} />
+      ) : (
+        <Chat />
+      )}
     </div>
   )
 }
