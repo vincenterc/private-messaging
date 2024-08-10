@@ -149,8 +149,12 @@ export default function Chat() {
 
   function onSelectUser(user: UserType) {
     return function () {
-      // TODO
-      user.hasNewMessages = false
+      const userIndex = users.findIndex((u) => u.userID === user?.userID)
+      setUsers([
+        ...users.slice(0, userIndex),
+        { ...users[userIndex], hasNewMessages: false },
+        ...users.slice(userIndex + 1),
+      ])
       setSelectedUserId(user.userID)
     }
   }
