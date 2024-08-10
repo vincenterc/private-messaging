@@ -66,6 +66,7 @@ io.on('connection', (socket) => {
   // join the "userID" room
   socket.join(socket.data.userID)
 
+  // fetch existing users
   const users: User[] = []
   sessionStore.findAllSessions().forEach((session) => {
     users.push({
@@ -92,6 +93,7 @@ io.on('connection', (socket) => {
     })
   })
 
+  // notify users upon disconnection
   socket.on('disconnect', async () => {
     const matchingSockets = await io.in(socket.data.userID).fetchSockets()
     const isDisconnected = matchingSockets.length === 0
