@@ -13,13 +13,13 @@ const LocalStorageKeys = {
 }
 
 export default function Page() {
-  const [usernameAlreadySelected, setUsernameAlreadySelected] = useState(false)
+  const [isUsernameSelected, setIsUsernameSelected] = useState(false)
 
   useEffect(() => {
     const sessionID = localStorage.getItem(LocalStorageKeys.SessionID)
 
     if (sessionID) {
-      setUsernameAlreadySelected(true)
+      setIsUsernameSelected(true)
       socket.auth = { sessionID }
       socket.connect()
     }
@@ -39,7 +39,7 @@ export default function Page() {
 
     function onConnectError(err: Error) {
       if (err.message === 'invalid username') {
-        setUsernameAlreadySelected(false)
+        setIsUsernameSelected(false)
       }
     }
 
@@ -53,14 +53,14 @@ export default function Page() {
   }, [])
 
   function onSelectUsername(username: string) {
-    setUsernameAlreadySelected(true)
+    setIsUsernameSelected(true)
     socket.auth = { username }
     socket.connect()
   }
 
   return (
     <div id="app" className={lato.variable}>
-      {!usernameAlreadySelected ? (
+      {!isUsernameSelected ? (
         <SelectUsername onSelectUsername={onSelectUsername} />
       ) : (
         <Chat />
