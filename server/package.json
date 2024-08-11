@@ -11,6 +11,8 @@
     "typescript": "^5.5.4"
   },
   "dependencies": {
+    "@socket.io/cluster-adapter": "^0.2.2",
+    "@socket.io/sticky": "^1.0.4",
     "socket.io": "^4.7.5"
   }
 }
