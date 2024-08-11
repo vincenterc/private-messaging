@@ -1,3 +1,16 @@
+export interface IncomingMessageType {
+  content: string
+  from: string
+  to: string
+}
+
+export interface IncomingUserType {
+  userID: string
+  username: string
+  connected: boolean
+  messages: IncomingMessageType[]
+}
+
 export interface Message {
   fromSelf: boolean
   content: string
@@ -24,8 +37,8 @@ export interface ServerToClientEvents {
     sessionID: string
     userID: string
   }) => void
-  users: (users: UserType[]) => void
-  'user connected': (user: UserType) => void
+  users: (users: IncomingUserType[]) => void
+  'user connected': (user: IncomingUserType) => void
   'user disconnected': (id: string) => void
   'private message': ({
     content,

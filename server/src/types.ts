@@ -1,7 +1,14 @@
+export interface Message {
+  content: string
+  from: string
+  to: string
+}
+
 export interface User {
   userID: string
   username: string
   connected: boolean
+  messages: Message[]
 }
 
 export interface Session {

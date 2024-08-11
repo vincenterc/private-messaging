@@ -7,7 +7,9 @@ import {
   InterServerEvents,
   SocketData,
   User,
+  Message,
 } from './types.js'
+import { InMemoryMessageStore } from './message-store.js'
 import { InMemorySessionStore } from './sessionStore.js'
 
 const server = createServer()
@@ -23,6 +25,8 @@ const io = new Server<
 })
 
 const randomId = () => crypto.randomBytes(8).toString('hex')
+
+const messageStore = new InMemoryMessageStore()
 
 const sessionStore = new InMemorySessionStore()
 
@@ -68,11 +72,22 @@ io.on('connection', (socket) => {
 
   // fetch existing users
   const users: User[] = []
+  const messagePerUser: Map<string, Message[]> = new Map()
+  messageStore.findMessagesForUser(socket.data.userID).forEach((message) => {
+    const { from, to } = message
+    const otherUser = socket.data.userID === from ? to : from
+    if (messagePerUser.has(otherUser)) {
+      messagePerUser.get(otherUser)!.push(message)
+    } else {
+      messagePerUser.set(otherUser, [message])
+    }
+  })
   sessionStore.findAllSessions().forEach((session) => {
     users.push({
       userID: session.userID,
       username: session.username,
       connected: session.connected,
+      messages: messagePerUser.get(session.userID) || [],
     })
   })
   socket.emit('users', users)
@@ -82,15 +97,18 @@ io.on('connection', (socket) => {
     userID: socket.data.userID,
     username: socket.data.username,
     connected: true,
+    messages: [],
   })
 
   // forward the private message to the right recipient (and to other tabs of the sender)
   socket.on('private message', ({ content, to }) => {
-    socket.to(to).to(socket.data.userID).emit('private message', {
+    const message = {
       content,
       from: socket.data.userID,
       to,
-    })
+    }
+    socket.to(to).to(socket.data.userID).emit('private message', message)
+    messageStore.saveMessage(message)
   })
 
   // notify users upon disconnection

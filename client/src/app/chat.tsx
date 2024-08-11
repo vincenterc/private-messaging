@@ -4,19 +4,18 @@ import styles from './chat.module.css'
 import User from './user'
 import MessagePanel from './message-panel'
 import socket from '@/socket'
-import { UserType } from '@/types'
+import {
+  IncomingMessageType,
+  IncomingUserType,
+  Message,
+  UserType,
+} from '@/types'
 
 export default function Chat() {
   const [users, setUsers] = useState<UserType[]>([])
   const [selectedUserId, setSelectedUserId] = useState<string>('')
 
   useEffect(() => {
-    const initUserProps = (user: UserType): UserType => ({
-      ...user,
-      messages: [],
-      hasNewMessages: false,
-    })
-
     function onConnect() {
       setUsers(
         users.map((user) => {
@@ -47,17 +46,30 @@ export default function Chat() {
       )
     }
 
-    function onUsers(us: UserType[]) {
+    const transformIncomingMessagesToMessages = (
+      messages: IncomingMessageType[],
+    ): Message[] =>
+      messages.map((message) => ({
+        // TODO socket.userID
+        fromSelf: message.from === (socket as any).userID,
+        content: message.content,
+      }))
+
+    function onUsers(us: IncomingUserType[]) {
       const newUsers = us.map((u) => {
+        const newMessages = transformIncomingMessagesToMessages(u.messages)
         const existingUser = users.find((user) => user.userID === u.userID)
         if (existingUser) {
           return {
             ...existingUser,
             connected: u.connected,
+            messages: newMessages,
           }
         }
         return {
-          ...initUserProps(u),
+          ...u,
+          messages: newMessages,
+          hasNewMessages: false,
           // TODO socket.userID
           self: u.userID === (socket as any).userID,
         }
@@ -73,7 +85,7 @@ export default function Chat() {
       )
     }
 
-    function onUserConnected(u: UserType) {
+    function onUserConnected(u: IncomingUserType) {
       const existingUserIndex = users.findIndex(
         (user) => user.userID === u.userID,
       )
@@ -84,7 +96,16 @@ export default function Chat() {
           ...users.slice(existingUserIndex + 1),
         ])
       } else {
-        setUsers([...users, initUserProps(u)])
+        setUsers([
+          ...users,
+          {
+            ...u,
+            messages: transformIncomingMessagesToMessages(u.messages),
+            // TODO socket.userID
+            self: u.userID === (socket as any).userID,
+            hasNewMessages: false,
+          },
+        ])
       }
     }
 
