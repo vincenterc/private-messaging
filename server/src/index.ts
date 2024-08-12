@@ -1,10 +1,11 @@
 import cluster from 'cluster'
 import http from 'http'
 import sticky from '@socket.io/sticky'
-import clusterAdapter from '@socket.io/cluster-adapter'
 import { availableParallelism } from 'os'
 import { Server } from 'socket.io'
 import crypto from 'crypto'
+import { Redis } from 'ioredis'
+import redisAdapter from '@socket.io/redis-adapter'
 import {
   ClientToServerEvents,
   ServerToClientEvents,
@@ -13,8 +14,8 @@ import {
   User,
   Message,
 } from './types.js'
-import { InMemoryMessageStore } from './message-store.js'
-import { InMemorySessionStore } from './sessionStore.js'
+import { RedisMessageStore } from './message-store.js'
+import { RedisSessionStore } from './sessionStore.js'
 
 if (cluster.isPrimary) {
   console.log(`Primary ${process.pid} is running`)
@@ -25,9 +26,6 @@ if (cluster.isPrimary) {
   sticky.setupMaster(server, {
     loadBalancingMethod: 'least-connection',
   })
-
-  // setup connections between the workers
-  clusterAdapter.setupPrimary()
 
   const PORT = process.env.PORT || 3000
 
@@ -50,6 +48,7 @@ if (cluster.isPrimary) {
   console.log(`Worker ${process.pid} started`)
 
   const server = http.createServer()
+  const redisClient = new Redis()
   const io = new Server<
     ClientToServerEvents,
     ServerToClientEvents,
@@ -59,7 +58,7 @@ if (cluster.isPrimary) {
     cors: {
       origin: 'http://localhost:3001',
     },
-    adapter: clusterAdapter.createAdapter(),
+    adapter: redisAdapter.createAdapter(redisClient, redisClient.duplicate()),
   })
 
   // setup connection with the primary process
@@ -67,15 +66,15 @@ if (cluster.isPrimary) {
 
   const randomId = () => crypto.randomBytes(8).toString('hex')
 
-  const messageStore = new InMemoryMessageStore()
+  const messageStore = new RedisMessageStore(redisClient)
 
-  const sessionStore = new InMemorySessionStore()
+  const sessionStore = new RedisSessionStore(redisClient)
 
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const sessionID = socket.handshake.auth.sessionID
     if (sessionID) {
       // find existing session
-      const session = sessionStore.findSession(sessionID)
+      const session = await sessionStore.findSession(sessionID)
       if (session) {
         socket.data.sessionID = sessionID
         socket.data.userID = session.userID
@@ -94,7 +93,7 @@ if (cluster.isPrimary) {
     next()
   })
 
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
     // persist session
     sessionStore.saveSession(socket.data.sessionID, {
       userID: socket.data.userID,
@@ -113,8 +112,12 @@ if (cluster.isPrimary) {
 
     // fetch existing users
     const users: User[] = []
+    const [messages, sessions] = await Promise.all([
+      messageStore.findMessagesForUser(socket.data.userID),
+      sessionStore.findAllSessions(),
+    ])
     const messagePerUser: Map<string, Message[]> = new Map()
-    messageStore.findMessagesForUser(socket.data.userID).forEach((message) => {
+    messages.forEach((message) => {
       const { from, to } = message
       const otherUser = socket.data.userID === from ? to : from
       if (messagePerUser.has(otherUser)) {
@@ -123,7 +126,7 @@ if (cluster.isPrimary) {
         messagePerUser.set(otherUser, [message])
       }
     })
-    sessionStore.findAllSessions().forEach((session) => {
+    sessions.forEach((session) => {
       users.push({
         userID: session.userID,
         username: session.username,
